@@ -2,6 +2,7 @@ const express  = require ("express");
 const env = require("dotenv");
 const {db} = require("/AMD/SSQQLL/db/connection");
 const body = require("body-parser")
+const bcrypt = require("bcrypt")
 
 env.config()
 
@@ -11,6 +12,60 @@ const app = express()
 // app.use(body.urlencoded({extended : true}))
 
 app.use(express.json())
+
+//Registrasi User
+app.post("/Registrasi",async (req,res) => {
+    const email = req.body.email
+    const password = req.body.password
+    const nama = req.body.nama
+    const umur = req.body.umur
+    const hashPassword =await bcrypt.hash(password,10)
+    
+    if(!email || !password || !nama || !umur){
+        return res.status(400).send("Tidak Boleh ada yng kosong")
+    }
+
+    const value = [email,hashPassword,nama,umur]
+    const query = "INSERT INTO login (email,password,nama,umur) VALUE (?,?,?,?)"
+
+    db.query(query,value,(err,result) => {
+        if(err) throw err
+        res.send("Data Berhasil di tambahkan silahkan login kembali")
+    })
+})
+
+//Login User
+app.post("/Login",async (req,res) => {
+    const email = req.body.email
+    const password = req.body.password
+    const value = [email,password]
+    
+    if(!email || !password) {
+        return res.send("Email dan Password harus di isi")
+    }
+    
+    const query = "SELECT * FROM login WHERE email = ?"
+    try {
+        db.query(query,value,(err,result) => {
+            if (err) throw err
+                console.log(result);
+            if(result.length === 0){
+                res.send("Email dan Password anda salah")
+            }
+                const user = result[0];
+                
+                const valdPassword = bcrypt.compare(password,user.password)
+                if(valdPassword){
+                    console.log("Login Berhasil")
+                    res.redirect("/Members")
+                }else{
+                    res.send("Password Salah")
+                }
+            })
+    } catch (error) {
+        res.send("login gagal")
+    }
+})
 
 app.get("/",(req,res) => {
     res.send("Hello World")
@@ -97,7 +152,6 @@ app.patch("/Members/:id", (req, res) => {
         res.send("Update Berhasil")
     })
 });
-
 
 //Menampilkan Data Sesuai Id
 app.get("/Members/:id",(req,res) => {
