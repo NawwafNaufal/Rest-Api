@@ -15,23 +15,29 @@ const app = express()
 
 app.use(express.json())
 
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Format "Bearer TOKEN"
-
-    if (!token) {
-        return res.status(401).send('Token Di Perlukan');
+//Jwt(Json Web Token)
+//Menggunakkan (Oauth 2)
+const authenticateToken = (req,res,next) => {
+    const setHeadr = req.headers ['authorization'];
+    const token = setHeadr && setHeadr.split(" ")[1];
+    if(!token){
+        res.status(401).send("Token di butuhkan")
     }
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).send('Token tidak valid');
+    jwt.verify(token,JWT_SECRET,(err,result) => {
+        if(err) {
+            res.send("Token tidak valid")
         }
-        req.user = user; // Menyimpan payload token ke request untuk akses selanjutnya
-        next(); // Melanjutkan ke endpoint berikutnya
-    });
-};
-//Registrasi User
+        req.result = result
+        next()
+    })
+
+} 
+
+//==Registrasi User==\\
+//Endpoint:Registrasi
+//Metode HTTP: POST
+//Deskripsi: Mendaftarkan pengguna baru dengan informasi seperti email, password, nama, dan umur.
+//Password yang dimasukkan oleh pengguna akan di-hash menggunakan bcrypt sebelum disimpan di database.
 app.post("/Registrasi",async (req,res) => {
     const email = req.body.email
     const password = req.body.password
@@ -52,7 +58,11 @@ app.post("/Registrasi",async (req,res) => {
     })
 })
 
-//Login User
+//Login User\\
+//Endpoint: /Login
+//Metode HTTP: POST
+//Deskripsi: Mengautentikasi pengguna berdasarkan email dan password. Jika autentikasi berhasil, 
+//server akan mengirimkan token JWT yang dapat digunakan untuk mengakses endpoint lain yang dilindungi.
 app.post("/Login",async (req,res) => {
     const email = req.body.email
     const password = req.body.password
@@ -71,21 +81,21 @@ app.post("/Login",async (req,res) => {
                 res.send("Email dan Password anda salah")
             }
                 const user = result[0];
-                const parse = JSON.stringify(user)
-                console.log("Testing" + parse)
-                
-                
+
+                const payload = {
+                    id : user.id,
+                    email : user.email,
+                    nama : user.nama
+                }
+
+                const time = 60 * 60 * 1;
+
+                const token = jwt.sign(payload,JWT_SECRET,{expiresIn : time})
+
                 const valdPassword = bcrypt.compare(password,user.password)
+                
                     if(valdPassword){
-                        console.log("Login Berhasil")
-                        const payload = {
-                            id : user.id,
-                            email :user.email,
-                            nama : user.nama
-                        }
-                        const expires = 60 * 60 * 1;
-                        
-                        const token = jwt.sign(payload,JWT_SECRET,{expiresIn : expires})
+                        console.log("Login Berhasil")    
                         res.status(200).json({
                             token: token,
                             redirectTo: '/Members'
@@ -108,22 +118,31 @@ app.get("/",(req,res) => {
 
 
 //Menampilkan Data
+//Endpoint: /Members
+//Metode HTTP: GET
+//Deskripsi: Mengambil semua data anggota dari tabel clan. Hanya bisa diakses oleh pengguna yang telah terautentikasi.
 app.get("/Members",authenticateToken,(req,res) => {
     const ambil = "SELECT * FROM clan"
     db.query(ambil,(err,result) =>{
         if(err) throw err
         const parse = JSON.parse(JSON.stringify(result))
-        console.log(parse)
         res.send(parse)
     })
 })
 
 //Insert Data
+//Endpoint: /Members
+//Metode HTTP: POST
+//Deskripsi: Menambahkan anggota baru ke dalam tabel clan. Endpoint ini juga dilindungi oleh JWT.
 app.post("/Members",authenticateToken,(req,res) => {
     const nama = req.body.nama
     const poin = req.body.poin
     const insert = `INSERT INTO clan (nama,poin) VALUES (?,?)`
     const values = [nama,poin]
+
+    if(!nama || !poin){
+        res.send("Data Tidak Boleh Kosong")
+    }
 
     db.query(insert,values,(err,result) => {
         if(err) throw err
@@ -133,18 +152,23 @@ app.post("/Members",authenticateToken,(req,res) => {
 })
 
 //Hapus Data
+//Endpoint: /Members/:id
+//Metode HTTP: DELETE
+//Deskripsi: Menghapus data anggota dari tabel clan berdasarkan id anggota. Endpoint ini memerlukan autentikasi JWT.
 app.delete("/Members/:id",authenticateToken,(req,res) => {
     const idMember = req.params.id
     const input = "DELETE FROM clan WHERE id = ? "
-
     db.query(input,idMember,(err,result) => {
         if(err) throw err
-        console.log(result)
         res.send("Berhasil di Hapus")
     })
 })
 
-//Update Data Wajib Mengupdate data isi tabel semua(PUT)
+//Update Data Anggota (PUT)
+//Endpoint: /Members/:id
+//Metode HTTP: PUT
+//Deskripsi: Memperbarui seluruh data anggota di tabel clan berdasarkan id. Semua field (nama dan poin) harus diisi. 
+//Endpoint ini memerlukan autentikasi JWT.
 app.put("/Members/:id",authenticateToken,(req,res) => {
     const add1 = req.body.nama
     const add2 = req.body.poin
@@ -162,7 +186,11 @@ app.put("/Members/:id",authenticateToken,(req,res) => {
         })
 })
 
-//Update data Tidak Harus memperbarui semua data(PATCH)
+//Update Data Anggota (PATCH)
+//Endpoint: /Members/:id
+//Metode HTTP: PATCH
+//Deskripsi: Memperbarui sebagian data anggota di tabel clan berdasarkan id. Tidak semua field harus diisi. 
+//Endpoint ini memerlukan autentikasi JWT.
 app.patch("/Members/:id",authenticateToken,(req, res) => {
     const idMember = req.params.id;
     const updates = req.body;
@@ -189,7 +217,10 @@ app.patch("/Members/:id",authenticateToken,(req, res) => {
     })
 });
 
-//Menampilkan Data Sesuai Id
+//Menampilkan Data Anggota Berdasarkan ID
+//Endpoint: /Members/:id
+//Metode HTTP: GET
+//Deskripsi: Mengambil data anggota dari tabel clan berdasarkan id. Endpoint ini memerlukan autentikasi JWT.
 app.get("/Members/:id",authenticateToken,(req,res) => {
     const idMember = req.params.id
     
@@ -203,6 +234,10 @@ app.get("/Members/:id",authenticateToken,(req,res) => {
 })
 
 //Sistem Perangkingan
+//Endpoint: /Rank
+//Metode HTTP: GET
+//Deskripsi: Menampilkan daftar anggota dari tabel clan yang diurutkan berdasarkan poin secara menurun (dari yang tertinggi). 
+//Endpoint ini memerlukan autentikasi JWT.
 app.get("/Rank",authenticateToken,(req,res) => {
     const input = "SELECT * FROM clan ORDER BY poin DESC"
 
@@ -221,7 +256,11 @@ app.get("/Rank",authenticateToken,(req,res) => {
 
 })
 
-//Di urutkan dari alfabet
+//Mengurutkan Berdasarkan Nama
+//Endpoint: /alfa
+//Metode HTTP: GET
+//Deskripsi: Menampilkan daftar nama anggota dari tabel clan yang diurutkan secara alfabetis (dari A ke Z). 
+//Endpoint ini memerlukan autentikasi JWT.
 app.get("/alfa",authenticateToken,(req,res) => {
     const query = "SELECT nama FROM clan ORDER BY nama asc"
 
@@ -235,7 +274,10 @@ app.get("/alfa",authenticateToken,(req,res) => {
     })
 })
 
-//Penjumlahan semua poin 
+//Penjumlahan Semua Poin
+//Endpoint: /jumlah
+//Metode HTTP: GET
+//Deskripsi: Menampilkan total jumlah poin dari seluruh anggota di tabel clan. Endpoint ini memerlukan autentikasi JWT.
 app.get("/jumlah",authenticateToken,(req,res) => {
     const query = "SELECT SUM(poin) AS total FROM clan"
 
@@ -245,7 +287,11 @@ app.get("/jumlah",authenticateToken,(req,res) => {
     })
 })
 
-//eleminaasi 5 >
+//Eliminasi 5 Anggota Teratas
+//Endpoint: /Eleminasi
+//Metode HTTP: GET
+//Deskripsi: Menampilkan lima anggota teratas dari tabel clan berdasarkan poin, yang diurutkan dari yang tertinggi. 
+//Endpoint ini memerlukan autentikasi JWT.
 app.get("/Eleminasi",authenticateToken,(req,res) => {
     const query = "SELECT * FROM clan ORDER BY poin DESC LIMIT 5"
 
