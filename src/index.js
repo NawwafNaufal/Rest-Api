@@ -4,6 +4,7 @@ const {db} = require("/AMD/SSQQLL/db/connection");
 const body = require("body-parser")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
+const {authenticateRole} = require ("/AMD/SSQQLL/views/role")
 
 env.config()
 
@@ -85,11 +86,10 @@ app.post("/Login",async (req,res) => {
                 const payload = {
                     id : user.id,
                     email : user.email,
-                    nama : user.nama
+                    nama : user.nama,
+                    role : user.role
                 }
-
                 const time = 60 * 60 * 1;
-
                 const token = jwt.sign(payload,JWT_SECRET,{expiresIn : time})
 
                 const valdPassword = bcrypt.compare(password,user.password)
@@ -116,12 +116,19 @@ app.get("/",(req,res) => {
     res.send("Hello World")
 })
 
+app.get('/admin', authenticateToken, authenticateRole('admin'), (req, res) => {
+    res.send("Selamat datang di halaman admin!");
+});
+
+app.get('/user', authenticateToken, authenticateRole('user'), (req, res) => {
+    res.send("Selamat datang di halaman pengguna!");
+});
 
 //Menampilkan Data
 //Endpoint: /Members
 //Metode HTTP: GET
 //Deskripsi: Mengambil semua data anggota dari tabel clan. Hanya bisa diakses oleh pengguna yang telah terautentikasi.
-app.get("/Members",authenticateToken,(req,res) => {
+app.get("/Members",authenticateToken,(req,res,next) => {
     const ambil = "SELECT * FROM clan"
     db.query(ambil,(err,result) =>{
         if(err) throw err
@@ -155,7 +162,7 @@ app.post("/Members",authenticateToken,(req,res) => {
 //Endpoint: /Members/:id
 //Metode HTTP: DELETE
 //Deskripsi: Menghapus data anggota dari tabel clan berdasarkan id anggota. Endpoint ini memerlukan autentikasi JWT.
-app.delete("/Members/:id",authenticateToken,(req,res) => {
+app.delete("/Members/:id",authenticateToken,authenticateRole('admin'),(req,res) => {
     const idMember = req.params.id
     const input = "DELETE FROM clan WHERE id = ? "
     db.query(input,idMember,(err,result) => {
