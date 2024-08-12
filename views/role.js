@@ -4,7 +4,6 @@ const authenticateRole = (role) => {
         if (result.role !== role) {
             return res.status(403).send('Anda tidak memiliki akses ke halaman ini');
         }
-        console.log(result)
         next();
     };
 };

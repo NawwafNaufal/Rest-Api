@@ -1,10 +1,10 @@
 const express  = require ("express");
 const env = require("dotenv");
-const {db} = require("/AMD/SSQQLL/db/connection");
+const {db} = require("/AMD/RestApi/db/connection");
 const body = require("body-parser")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-const {authenticateRole} = require ("/AMD/SSQQLL/views/role")
+const {authenticateRole} = require ("/AMD/RestApi/views/role")
 
 env.config()
 
@@ -311,6 +311,40 @@ app.get("/Eleminasi",authenticateToken,(req,res) => {
         res.send(no)
     })
 })
-app.listen(PORT, ()=> {
+
+app.get("/Random",(req,res) => {
+    const query = "SELECT * FROM clan"
+    try {
+        db.query(query,(err,result) => {
+            if(err) throw err
+            const acak = Math.floor(Math.random() * 10)
+            const randomNumber =result.map((item,index) => ({
+                Rolate : index + acak,
+                ...item
+            }))
+            res.send(randomNumber)
+        })     
+    } catch (error) {
+        res.status(404).send("Nothing")
+    } 
+})
+
+
+app.post("/komen",authenticateToken,(req,res) => {
+    const komen = req.body.komentar
+    const query = "INSERT INTO user_k (komentar) VALUE (?)"
+    const {result} = req;
+
+        db.query(query,komen,(err,res) => {
+            if(err) throw err
+            const data = res
+            return data;
+        })
+    res.json({
+        komen: komen,
+        nama : result.nama
+    })
+})
+app.listen(PORT, () => {
     console.log("Terhubung di Port " + PORT)
 })
